@@ -16,26 +16,34 @@ options = PipelineOptions(
     job_name='beam-demo-job'
 )
 
+class LogStep(beam.DoFn):
+    def __init__(self, message):
+        self.message = message
+    def process(self, element):
+        logger.info(f"{self.message}: {element}")
+        yield element
+
 def run():
     try:
-        logger.info("Starting Dataflow pipeline.")
         data = [1, 2, 3, 4, 5]
-        logger.info(f"Data initialized: {data}")
-
-        def log_result(x):
-            logger.info(f"Result: {x}")
 
         with beam.Pipeline(options=options) as pipeline:
-            logger.info("Pipeline object created.")
-            pc1 = pipeline | 'create numbers' >> beam.Create(data)
-            logger.info("Created PCollection from data.")
-            pc2 = pc1 | 'filter data' >> beam.Filter(lambda x: x % 2 == 0)
-            logger.info("Filtered even numbers.")
-            pc3 = pc2 | 'square' >> beam.Map(lambda x: x * x)
-            logger.info("Squared filtered numbers.")
-            pc3 | 'log result' >> beam.Map(log_result)
-            logger.info("Logged results.")
-        logger.info("Pipeline finished.")
+            pc1 = (
+                pipeline
+                | 'create numbers' >> beam.Create(data)
+                | 'log created' >> beam.ParDo(LogStep("Created PCollection from data"))
+            )
+            pc2 = (
+                pc1
+                | 'filter data' >> beam.Filter(lambda x: x % 2 == 0)
+                | 'log filtered' >> beam.ParDo(LogStep("Filtered even numbers"))
+            )
+            pc3 = (
+                pc2
+                | 'square' >> beam.Map(lambda x: x * x)
+                | 'log squared' >> beam.ParDo(LogStep("Squared filtered numbers"))
+            )
+            pc3 | 'log result' >> beam.ParDo(LogStep("Result"))
     except Exception as e:
         logger.error(f"Pipeline execution failed: {e}")
 
